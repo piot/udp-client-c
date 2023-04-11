@@ -1,0 +1,7 @@
+
+deps*/
+.vscode/
+build/
+.idea/
+cmake-*/
+r
