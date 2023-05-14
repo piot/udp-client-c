@@ -24,7 +24,7 @@ int udpClientStartup(void);
 
 int udpClientInit(UdpClientSocket* self, const char* name, uint16_t port);
 int udpClientSend(UdpClientSocket* self, const uint8_t* data, size_t size);
-int udpClientReceive(UdpClientSocket* self, uint8_t* data, size_t size);
+ssize_t udpClientReceive(UdpClientSocket* self, uint8_t* data, size_t size);
 
 #if defined TORNADO_OS_WINDOWS
 #define UDP_CLIENT_SOCKET_HANDLE SOCKET

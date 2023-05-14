@@ -57,7 +57,7 @@ static int udpClientBind(int handle, in_port_t port)
     servaddr.sin_port = htons(port);
 
     int result;
-    if ((result = bind(handle, (const struct sockaddr*)&servaddr, sizeof(servaddr))) < 0) {
+    if ((result = bind(handle, (const struct sockaddr*) &servaddr, sizeof(servaddr))) < 0) {
         CLOG_WARN("could not bind to port %d", port);
         return result;
     }
@@ -91,7 +91,7 @@ static void setPeerAddress(UdpClientSocket* self, const char* name, uint16_t por
 
     const struct addrinfo* first = result;
     memset(peer, 0, sizeof(*peer));
-    struct sockaddr_in* in_addr = (struct sockaddr_in*)first->ai_addr;
+    struct sockaddr_in* in_addr = (struct sockaddr_in*) first->ai_addr;
     memcpy(peer, in_addr, first->ai_addrlen);
     peer->sin_port = htons(port);
     freeaddrinfo(result);
@@ -149,21 +149,21 @@ int udpClientSend(UdpClientSocket* self, const uint8_t* data, size_t size)
 {
     if (size > UDP_CLIENT_MAX_OCTET_SIZE) {
         CLOG_ERROR("You wanted to send %zu octets, but the recommended maximum size is %zu", size,
-            UDP_CLIENT_MAX_OCTET_SIZE)
+                   UDP_CLIENT_MAX_OCTET_SIZE)
         return -2;
     }
     if (size == 0) {
         CLOG_SOFT_ERROR("udpClientSend: you can not send zero length packets")
     }
-    ssize_t number_of_octets_sent = sendto(self->handle, data, size, 0, (struct sockaddr*)&self->peer_address,
-        sizeof(self->peer_address));
+    ssize_t number_of_octets_sent = sendto(self->handle, data, size, 0, (struct sockaddr*) &self->peer_address,
+                                           sizeof(self->peer_address));
 
     if (number_of_octets_sent < 0) {
         CLOG_WARN("Error send! errno:%d return: %ld\n", UDP_CLIENT_GET_ERROR, number_of_octets_sent)
         return -1;
     }
 
-    return ((size_t)number_of_octets_sent == size);
+    return ((size_t) number_of_octets_sent == size);
 }
 
 /// Try to receive an UDP packet
@@ -171,13 +171,14 @@ int udpClientSend(UdpClientSocket* self, const uint8_t* data, size_t size)
 /// @param self
 /// @param data
 /// @param size
-/// @return returns zero if it would block, or if no packet is available, negative numbers for error. positive numbers is the number of octets in the payload.
-int udpClientReceive(UdpClientSocket* self, uint8_t* data, size_t size)
+/// @return returns zero if it would block, or if no packet is available, negative numbers for error. positive numbers
+/// is the number of octets in the payload.
+ssize_t udpClientReceive(UdpClientSocket* self, uint8_t* data, size_t size)
 {
     struct sockaddr_in from_who;
 
     socklen_t addr_size = sizeof(from_who);
-    ssize_t number_of_octets = recvfrom(self->handle, data, size, 0, (struct sockaddr*)&from_who, &addr_size);
+    ssize_t number_of_octets = recvfrom(self->handle, data, size, 0, (struct sockaddr*) &from_who, &addr_size);
     if (number_of_octets == -1) {
         int last_err = UDP_CLIENT_GET_ERROR;
         if (last_err == UDP_CLIENT_ERROR_AGAIN || last_err == UDP_CLIENT_ERROR_WOULDBLOCK) {
@@ -188,5 +189,5 @@ int udpClientReceive(UdpClientSocket* self, uint8_t* data, size_t size)
         }
     }
 
-    return (int)number_of_octets;
+    return number_of_octets;
 }
