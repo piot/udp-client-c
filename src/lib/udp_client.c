@@ -10,8 +10,9 @@ typedef USHORT in_port_t;
 typedef SSIZE_T ssize_t;
 #include <ws2tcpip.h>
 #endif
-
 #else
+#include <sys/types.h>
+#include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netdb.h>
 #endif
@@ -60,7 +61,7 @@ static int udpClientBind(UDP_CLIENT_SOCKET_HANDLE handle, in_port_t port)
 
     int result;
     if ((result = bind(handle, (const struct sockaddr*) &servaddr, sizeof(servaddr))) < 0) {
-        CLOG_WARN("could not bind to port %d", port);
+        CLOG_WARN("could not bind to port %d", port)
         return result;
     }
 
