@@ -10,11 +10,13 @@ typedef USHORT in_port_t;
 typedef SSIZE_T ssize_t;
 #include <ws2tcpip.h>
 #endif
+#define UDP_CLIENT_SIZE_CAST(a) (int) a
 #else
-#include <sys/types.h>
-#include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#define UDP_CLIENT_SIZE_CAST(a) a
 #endif
 
 #include <clog/clog.h>
@@ -68,7 +70,7 @@ static int udpClientBind(UDP_CLIENT_SOCKET_HANDLE handle, in_port_t port)
     return 0;
 }
 
-static int create(void)
+static UDP_CLIENT_SOCKET_HANDLE create(void)
 {
     UDP_CLIENT_SOCKET_HANDLE handle = socket(PF_INET, SOCK_DGRAM, 0);
     socket_non_blocking(handle, 1);
@@ -156,11 +158,11 @@ int udpClientSend(UdpClientSocket* self, const uint8_t* data, size_t size)
         return -4;
     }
 
-    ssize_t number_of_octets_sent = sendto(self->handle, data, size, 0, (struct sockaddr*) &self->peer_address,
-                                           sizeof(self->peer_address));
+    ssize_t number_of_octets_sent = sendto(self->handle, UDP_CLIENT_SIZE_CAST(data), size, 0,
+                                           (struct sockaddr*) &self->peer_address, sizeof(self->peer_address));
 
     if (number_of_octets_sent < 0) {
-        CLOG_WARN("Error send! errno:%d return: %ld\n", UDP_CLIENT_GET_ERROR, number_of_octets_sent)
+        CLOG_WARN("Error send! errno:%d return: %zd", UDP_CLIENT_GET_ERROR, number_of_octets_sent)
         return -1;
     }
 
@@ -186,7 +188,8 @@ ssize_t udpClientReceive(UdpClientSocket* self, uint8_t* data, size_t size)
     }
 
     socklen_t addr_size = sizeof(from_who);
-    ssize_t number_of_octets = recvfrom(self->handle, data, size, 0, (struct sockaddr*) &from_who, &addr_size);
+    ssize_t number_of_octets = recvfrom(self->handle, data, UDP_CLIENT_SIZE_CAST(size), 0, (struct sockaddr*) &from_who,
+                                        &addr_size);
     if (number_of_octets == -1) {
         int last_err = UDP_CLIENT_GET_ERROR;
         if (last_err == UDP_CLIENT_ERROR_AGAIN || last_err == UDP_CLIENT_ERROR_WOULDBLOCK) {
