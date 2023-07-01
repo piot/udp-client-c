@@ -2,10 +2,15 @@
  *  Copyright (c) Peter Bjorklund. All rights reserved.
  *  Licensed under the MIT License. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-#ifndef udp_client_h
-#define udp_client_h
+#ifndef UDP_CLIENT_H
+#define UDP_CLIENT_H
 
-#if TORNADO_OS_WINDOWS
+/// Maximum size is 1200, since the general recommendations are somewhere between 1200 and 1400 octets.
+/// (https://www.ietf.org/id/draft-ietf-dnsop-avoid-fragmentation-06.html#section-3.3).
+/// Steam Networking has a 1200 octet packet size limit (https://partner.steamgames.com/doc/api/ISteamNetworking)
+static const size_t UDP_CLIENT_MAX_OCTET_SIZE = 1200;
+
+#if defined TORNADO_OS_WINDOWS
 #include <WinSock2.h>
 #else
 #include <netinet/in.h>
@@ -15,16 +20,6 @@
 
 #include <stdint.h>
 
-typedef struct UdpClientSocket {
-    int handle;
-    struct sockaddr_in peer_address;
-} UdpClientSocket;
-
-int udpClientStartup(void);
-
-int udpClientInit(UdpClientSocket* self, const char* name, uint16_t port);
-int udpClientSend(UdpClientSocket* self, const uint8_t* data, size_t size);
-ssize_t udpClientReceive(UdpClientSocket* self, uint8_t* data, size_t size);
 
 #if defined TORNADO_OS_WINDOWS
 #define UDP_CLIENT_SOCKET_HANDLE SOCKET
@@ -47,3 +42,14 @@ ssize_t udpClientReceive(UdpClientSocket* self, uint8_t* data, size_t size);
 #endif
 
 #endif
+
+typedef struct UdpClientSocket {
+    UDP_CLIENT_SOCKET_HANDLE handle;
+    struct sockaddr_in peer_address;
+} UdpClientSocket;
+
+int udpClientStartup(void);
+
+int udpClientInit(UdpClientSocket* self, const char* name, uint16_t port);
+int udpClientSend(UdpClientSocket* self, const uint8_t* data, size_t size);
+ssize_t udpClientReceive(UdpClientSocket* self, uint8_t* data, size_t size);

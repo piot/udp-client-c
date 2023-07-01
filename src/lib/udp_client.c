@@ -2,7 +2,7 @@
  *  Copyright (c) Peter Bjorklund. All rights reserved.
  *  Licensed under the MIT License. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-#if TORNADO_OS_WINDOWS
+#if defined TORNADO_OS_WINDOWS
 #include <WinSock2.h>
 typedef USHORT in_port_t;
 #if defined(_MSC_VER)
@@ -23,7 +23,9 @@ typedef SSIZE_T ssize_t;
 #include <string.h>
 #include <udp-client/udp_client.h>
 
-static int socket_non_blocking(int handle, int non_blocking)
+#include <tiny-libc/tiny_libc.h>
+
+static int socket_non_blocking(UDP_CLIENT_SOCKET_HANDLE handle, int non_blocking)
 {
 #if defined TORNADO_OS_WINDOWS
     u_long mode = non_blocking;
@@ -46,7 +48,7 @@ static int socket_non_blocking(int handle, int non_blocking)
 #endif
 }
 
-static int udpClientBind(int handle, in_port_t port)
+static int udpClientBind(UDP_CLIENT_SOCKET_HANDLE handle, in_port_t port)
 {
     struct sockaddr_in servaddr;
 
@@ -67,7 +69,7 @@ static int udpClientBind(int handle, in_port_t port)
 
 static int create(void)
 {
-    int handle = socket(PF_INET, SOCK_DGRAM, 0);
+    UDP_CLIENT_SOCKET_HANDLE handle = socket(PF_INET, SOCK_DGRAM, 0);
     socket_non_blocking(handle, 1);
     return handle;
 }
@@ -77,7 +79,7 @@ static void setPeerAddress(UdpClientSocket* self, const char* name, uint16_t por
     struct sockaddr_in* peer = &self->peer_address;
 
     struct addrinfo hints;
-    memset(&hints, 0, sizeof(struct addrinfo));
+    tc_mem_clear_type(&hints);
     hints.ai_family = AF_UNSPEC; // AF_INET
     hints.ai_socktype = SOCK_DGRAM;
 
@@ -90,19 +92,19 @@ static void setPeerAddress(UdpClientSocket* self, const char* name, uint16_t por
     }
 
     const struct addrinfo* first = result;
-    memset(peer, 0, sizeof(*peer));
+    tc_memset_octets(peer, 0, sizeof(*peer));
     struct sockaddr_in* in_addr = (struct sockaddr_in*) first->ai_addr;
-    memcpy(peer, in_addr, first->ai_addrlen);
+    tc_memcpy_octets(peer, in_addr, first->ai_addrlen);
     peer->sin_port = htons(port);
     freeaddrinfo(result);
 }
 
 /// Initializes the socket API. Only call once at startup.
 /// Only needed on certain platforms.
-/// @return
+/// @return negative on error
 int udpClientStartup(void)
 {
-#if TORNADO_OS_WINDOWS
+#if defined TORNADO_OS_WINDOWS
     WSADATA wsaData;
     int err = WSAStartup(MAKEWORD(2, 2), &wsaData);
     if (err != 0) {
@@ -119,10 +121,10 @@ int udpClientStartup(void)
 
 /// Initialize the UDP client.
 /// Make sure that udpClientStartup() is called once at startup before calling this function.
-/// @param self
+/// @param self udp client
 /// @param name the name of the host to send to
 /// @param port the UDP port to send to
-/// @return
+/// @return negative on error
 int udpClientInit(UdpClientSocket* self, const char* name, uint16_t port)
 {
     self->handle = create();
@@ -135,13 +137,9 @@ int udpClientInit(UdpClientSocket* self, const char* name, uint16_t port)
     return 0;
 }
 
-#define UDP_CLIENT_MAX_OCTET_SIZE (size_t)(1200)
-
 /// Sends an UDP packet with the specified payload.
-/// Maximum size is 1200, since the general recommendations are somewhere between 1200 and 1400 octets.
-/// (https://www.ietf.org/id/draft-ietf-dnsop-avoid-fragmentation-06.html#section-3.3). Note: On MacOS the maximum size
-/// is 9216 octets.
-/// @param self
+/// Note: On MacOS the maximum size is 9216 octets.
+/// @param self client socket
 /// @param data the data to be sent
 /// @param size the octet count of the data
 /// @return negative number is an error code
@@ -150,11 +148,13 @@ int udpClientSend(UdpClientSocket* self, const uint8_t* data, size_t size)
     if (size > UDP_CLIENT_MAX_OCTET_SIZE) {
         CLOG_ERROR("You wanted to send %zu octets, but the recommended maximum size is %zu", size,
                    UDP_CLIENT_MAX_OCTET_SIZE)
-        return -2;
+        // return -2;
     }
     if (size == 0) {
         CLOG_SOFT_ERROR("udpClientSend: you can not send zero length packets")
+        return -4;
     }
+
     ssize_t number_of_octets_sent = sendto(self->handle, data, size, 0, (struct sockaddr*) &self->peer_address,
                                            sizeof(self->peer_address));
 
@@ -168,14 +168,21 @@ int udpClientSend(UdpClientSocket* self, const uint8_t* data, size_t size)
 
 /// Try to receive an UDP packet
 /// If not available, it returns zero.
-/// @param self
-/// @param data
-/// @param size
+/// @param self client socket
+/// @param data target buffer for packet payload
+/// @param size maximum size of data buffer
 /// @return returns zero if it would block, or if no packet is available, negative numbers for error. positive numbers
 /// is the number of octets in the payload.
 ssize_t udpClientReceive(UdpClientSocket* self, uint8_t* data, size_t size)
 {
     struct sockaddr_in from_who;
+
+    if (size != UDP_CLIENT_MAX_OCTET_SIZE) {
+        CLOG_SOFT_ERROR(
+            "udpClientReceive: packet buffer target should be the recommended size: %zu but encountered %zu",
+            UDP_CLIENT_MAX_OCTET_SIZE, size)
+        return -2;
+    }
 
     socklen_t addr_size = sizeof(from_who);
     ssize_t number_of_octets = recvfrom(self->handle, data, size, 0, (struct sockaddr*) &from_who, &addr_size);
@@ -184,7 +191,7 @@ ssize_t udpClientReceive(UdpClientSocket* self, uint8_t* data, size_t size)
         if (last_err == UDP_CLIENT_ERROR_AGAIN || last_err == UDP_CLIENT_ERROR_WOULDBLOCK) {
             return 0;
         } else {
-            CLOG_WARN("udpClientReceive: error %d\n", last_err);
+            CLOG_WARN("udpClientReceive: error %d", last_err)
             return 0;
         }
     }
