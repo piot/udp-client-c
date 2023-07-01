@@ -1,0 +1,32 @@
+name: build Windows
+on: [push]
+jobs:
+  build:
+    name: Build Windows
+    runs-on: windows-2022
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Setup cmake
+        uses: jwlawson/actions-setup-cmake@v1.14
+        with:
+          cmake-version: '3.26.x'
+
+      - name: Install Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: '1.20'
+
+      - name: deps fetch dependencies
+        run:
+          go run github.com/piot/deps/src/deps@main fetch -m clone -t src/deps
+
+      - name: cmake generate cache
+        run: |
+          cmake . -G "Visual Studio 17 2022" -DCMAKE_BUILD_TYPE="Debug"
+        working-directory: src/
+
+      - name: cmake build
+        run: cmake --build . --clean-first
+        working-directory: src/
