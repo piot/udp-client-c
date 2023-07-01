@@ -1,39 +1,133 @@
-cmake_minimum_required(VERSION 3.17)
-project(udp_client C)
+cmake_minimum_required(VERSION 3.16.3)
 
-set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD 99)
+set(CMAKE_C_EXTENSIONS false)
 
-if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-    set(isDebug TRUE)
+
+# --- Detect CMake build type, compiler and operating system ---
+
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+  message("detected debug build")
+  set(isDebug TRUE)
 else()
-    message("no debug")
-    set(isDebug FALSE)
+  message("detected release build")
+  set(isDebug FALSE)
 endif()
 
 
-if (isDebug)
-        message("Debug build detected")
-        add_compile_definitions(CONFIGURATION_DEBUG TYRAN_CONFIGURATION_DEBUG)
-        set(CONFIGURATION_DEBUG 1)
+if(CMAKE_C_COMPILER_ID MATCHES "Clang")
+  set(COMPILER_NAME "clang")
+  set(COMPILER_CLANG 1)
+elseif(CMAKE_C_COMPILER_ID STREQUAL "GNU")
+  set(COMPILER_NAME "gcc")
+  set(COMPILER_GCC 1)
+elseif(CMAKE_C_COMPILER_ID STREQUAL "MSVC")
+  set(COMPILER_NAME "msvc")
+  set(COMPILER_MSVC 1)
+endif()
+
+message("detected compiler: '${CMAKE_C_COMPILER_ID}' (${COMPILER_NAME})")
+
+set(useSanitizers false)
+
+if(useSanitizers)
+  message("using sanitizers")
+  set(sanitizers "-fsanitize=address")
 endif()
 
 
-set(DEPS ../../deps/)
+# --- Library ---
 
 
-file(GLOB_RECURSE deps_src FOLLOW_SYMLINKS
-        "${deps}*/src/lib/*.c"
-        )
+file(GLOB lib_src FOLLOW_SYMLINKS "./*.c")
 
-file(GLOB_RECURSE lib_src FOLLOW_SYMLINKS
-        "*.c"
-        )
 
-add_library(udp_client
-    ${lib_src}
-)
+add_library(udp-client STATIC ${lib_src})
 
-target_include_directories(udp_client PUBLIC ${DEPS}piot/clog/src/include)
-target_include_directories(udp_client PUBLIC ${DEPS}piot/tiny-libc/src/include)
-target_include_directories(udp_client PUBLIC ../include)
 
+if(APPLE)
+  target_compile_definitions(udp-client PRIVATE TORNADO_OS_MACOS)
+  set(OS_MACOS 1)
+elseif(UNIX)
+  target_compile_definitions(udp-client PRIVATE TORNADO_OS_LINUX)
+  set(OS_LINUX 1)
+elseif(WIN32)
+  target_compile_definitions(udp-client PRIVATE TORNADO_OS_WINDOWS)
+  set(OS_WINDOWS 1)
+endif()
+
+if(isDebug)
+  message("Setting definitions based on debug")
+  target_compile_definitions(udp-client PRIVATE CONFIGURATION_DEBUG)
+endif()
+
+
+function(unixlike)
+endfunction()
+
+if(OS_LINUX)
+  message("Linux Detected!")
+  # This is needed for getaddrinfo, freeaddrinfo, addrinfo
+  target_compile_definitions(udp-client PRIVATE _POSIX_C_SOURCE=200112L)
+  unixlike()
+elseif(OS_MACOS)
+  message("MacOS detected!")
+  unixlike()
+elseif(OS_WINDOWS)
+  message("Windows detected!")
+endif()
+
+target_include_directories(udp-client PUBLIC ../include)
+
+if(COMPILER_CLANG)
+  target_compile_options(
+    udp-client
+    PRIVATE -Weverything
+            -Werror
+            -Wno-padded # the order of the fields in struct can matter (ABI)
+            -Wno-declaration-after-statement # must be bug in clang? shows up
+                                             # even if std=c99
+            -Wno-unsafe-buffer-usage # unclear why it fails on clang-16
+            -Wno-unknown-warning-option # support newer clang versions, e.g. clang-16
+            -Wno-disabled-macro-expansion # bug in emscripten compiler?
+            -Wno-cast-align
+            ${sanitizers})
+elseif(COMPILER_GCC)
+target_compile_options(
+    udp-client
+    PRIVATE -Wall
+            -Wextra
+            -Wpedantic
+            -Werror
+            -Wno-padded # the order of the fields in struct can matter (ABI)
+            ${sanitizers})
+elseif(COMPILER_MSVC)
+  target_compile_options(
+    udp-client
+    PRIVATE /Wall
+            /WX
+            # /F 5000000 # stack size
+            /wd4820 # bytes padding added after data member
+            /wd4668 # bug in winioctl.h (is not defined as a preprocessor macro, replacing with '0' for '#if/#elif')
+            /wd5045 # Compiler will insert Spectre mitigation for memory load if /Qspectre switch specified
+          )
+else()
+  target_compile_options(udp-client PRIVATE -Wall)
+endif()
+
+
+target_link_libraries(udp-client PUBLIC clog)
+
+
+if(useSanitizers)
+  target_link_libraries(udp-client PRIVATE ${sanitizers})
+endif()
+
+if(NOT isDebug)
+  message("optimize!")
+  target_compile_options(udp-client PRIVATE -O3)
+endif()
+
+if (NOT MSVC)
+target_link_libraries(udp-client PRIVATE m)
+endif()
