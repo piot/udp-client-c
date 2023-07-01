@@ -158,7 +158,7 @@ int udpClientSend(UdpClientSocket* self, const uint8_t* data, size_t size)
         return -4;
     }
 
-    ssize_t number_of_octets_sent = sendto(self->handle, UDP_CLIENT_SIZE_CAST(data), size, 0,
+    ssize_t number_of_octets_sent = sendto(self->handle, data, UDP_CLIENT_SIZE_CAST(size), 0,
                                            (struct sockaddr*) &self->peer_address, sizeof(self->peer_address));
 
     if (number_of_octets_sent < 0) {
