@@ -67,6 +67,7 @@ endfunction()
 
 if(OS_LINUX)
   message("Linux Detected!")
+  target_compile_definitions(udp-client PRIVATE _POSIX_C_SOURCE=200112L)
   unixlike()
 elseif(OS_MACOS)
   message("MacOS detected!")

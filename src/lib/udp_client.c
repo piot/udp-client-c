@@ -14,10 +14,6 @@ typedef SSIZE_T ssize_t;
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
-
-// needed for addrinfo and getaddrinfo, freeaddrinfo
-#define __USE_XOPEN2K 1
-
 #include <netdb.h>
 #endif
 
