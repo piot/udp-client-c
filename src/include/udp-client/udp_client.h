@@ -41,7 +41,7 @@ static const size_t UDP_CLIENT_MAX_OCTET_SIZE = 1200;
 #define UDP_CLIENT_GET_ERROR errno
 #endif
 
-#endif
+
 
 typedef struct UdpClientSocket {
     UDP_CLIENT_SOCKET_HANDLE handle;
@@ -53,3 +53,5 @@ int udpClientStartup(void);
 int udpClientInit(UdpClientSocket* self, const char* name, uint16_t port);
 int udpClientSend(UdpClientSocket* self, const uint8_t* data, size_t size);
 ssize_t udpClientReceive(UdpClientSocket* self, uint8_t* data, size_t size);
+
+#endif
