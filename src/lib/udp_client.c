@@ -59,7 +59,7 @@ static int udpClientBind(UDP_CLIENT_SOCKET_HANDLE handle, in_port_t port)
 
     servaddr.sin_family = AF_INET; // IPv4
     servaddr.sin_addr.s_addr = INADDR_ANY;
-    servaddr.sin_port = htons(port);
+    servaddr.sin_port = 0;
 
     int result;
     if ((result = bind(handle, (const struct sockaddr*) &servaddr, sizeof(servaddr))) < 0) {
@@ -136,7 +136,18 @@ int udpClientInit(UdpClientSocket* self, const char* name, uint16_t port)
     if ((result = udpClientBind(self->handle, 0)) < 0) {
         return result;
     }
+
     setPeerAddress(self, name, port);
+
+    struct sockaddr_in resultingAddr;
+    socklen_t resultingLength = sizeof(resultingAddr);
+
+    if (getsockname(self->handle, (struct sockaddr*) &resultingAddr, &resultingLength) == -1) {
+        CLOG_SOFT_ERROR("udpClientBind, can not get bound port")
+    }
+
+    CLOG_DEBUG("udpClient. Bound to port %u, with target '%s:%u'", resultingAddr.sin_port, name, port)
+
     return 0;
 }
 
@@ -188,8 +199,8 @@ ssize_t udpClientReceive(UdpClientSocket* self, uint8_t* data, size_t size)
     }
 
     socklen_t addr_size = sizeof(from_who);
-    ssize_t number_of_octets = recvfrom(self->handle, (char*) data, UDP_CLIENT_SIZE_CAST(size), 0, (struct sockaddr*) &from_who,
-                                        &addr_size);
+    ssize_t number_of_octets = recvfrom(self->handle, (char*) data, UDP_CLIENT_SIZE_CAST(size), 0,
+                                        (struct sockaddr*) &from_who, &addr_size);
     if (number_of_octets == -1) {
         int last_err = UDP_CLIENT_GET_ERROR;
         if (last_err == UDP_CLIENT_ERROR_AGAIN || last_err == UDP_CLIENT_ERROR_WOULDBLOCK) {
