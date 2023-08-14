@@ -51,7 +51,7 @@ static int socket_non_blocking(UDP_CLIENT_SOCKET_HANDLE handle, int non_blocking
 #endif
 }
 
-static int udpClientBind(UDP_CLIENT_SOCKET_HANDLE handle, in_port_t port)
+static int udpClientBind(UDP_CLIENT_SOCKET_HANDLE handle)
 {
     struct sockaddr_in servaddr;
 
@@ -63,7 +63,7 @@ static int udpClientBind(UDP_CLIENT_SOCKET_HANDLE handle, in_port_t port)
 
     int result;
     if ((result = bind(handle, (const struct sockaddr*) &servaddr, sizeof(servaddr))) < 0) {
-        CLOG_WARN("could not bind to port %d", port)
+        CLOG_WARN("could not bind to free port")
         return result;
     }
 
@@ -133,7 +133,7 @@ int udpClientInit(UdpClientSocket* self, const char* name, uint16_t port)
     self->handle = create();
 
     int result;
-    if ((result = udpClientBind(self->handle, 0)) < 0) {
+    if ((result = udpClientBind(self->handle)) < 0) {
         return result;
     }
 
